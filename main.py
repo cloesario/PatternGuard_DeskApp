@@ -187,7 +187,7 @@ class PatternGuardApp(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("PatternGuard - Weave Crystallography DSP Desktop Suite")
+        self.title("PatternGuard")
         self.geometry("1280x880")
         self.minsize(1200, 840)
 
@@ -258,9 +258,7 @@ class PatternGuardApp(tk.Tk):
     def create_layout(self):
         """Builds flat sidebars, canvases, and widgets with grid-based spacing."""
 
-        # ==========================================
         # TOP HEADER BRANDING BAR
-        # ==========================================
         header_bar = tk.Frame(self, bg="#FFFFFF", height=75, bd=0, relief="flat")
         header_bar.pack(fill="x", side="top")
         header_bar.pack_propagate(False)
@@ -358,7 +356,7 @@ class PatternGuardApp(tk.Tk):
     # ==========================================
     def build_left_column(self, parent):
         # 1. Module 1: Input & Verify Card
-        self.card_input = self.create_card(parent, "Module 1: Input & Verify", "📸")
+        self.card_input = self.create_card(parent, "Input & Verify", "📸")
         self.card_input.pack(fill="x", pady=(0, 20))
 
         # Interactive Upload Slot
@@ -408,7 +406,7 @@ class PatternGuardApp(tk.Tk):
         self.banner_msg_lbl.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="w")
 
         # 2. Module 2: Configuration Card
-        self.card_config = self.create_card(parent, "Module 2: Configuration", "⚙️")
+        self.card_config = self.create_card(parent, "Configuration", "⚙️")
         self.card_config.pack(fill="x")
 
         config_inner = tk.Frame(self.card_config, bg="#FFFFFF")
@@ -484,11 +482,11 @@ class PatternGuardApp(tk.Tk):
     # RIGHT COLUMN: VISUAL RESULTS & METRICS
     # ==========================================
     def build_right_column(self, parent):
-        # 1. Module 3: Visual Results Card (with built-in Export button in Header)
+        # Module 3: Visual Results Card (with built-in Export button in Header)
         header_frame = tk.Frame(parent, bg=self.colors["bg"])
         header_frame.pack(fill="x", pady=(0, 10))
 
-        self.card_visuals = self.create_card(parent, "Module 3: Visual Results & Comparisons", "📊")
+        self.card_visuals = self.create_card(parent, "Visual Results & Comparisons", "📊")
         self.card_visuals.pack(fill="x", pady=(0, 20))
 
         # Injects deep blue "Export Reconstruction" button onto the right side of the card's header area
@@ -516,7 +514,7 @@ class PatternGuardApp(tk.Tk):
         visuals_inner.columnconfigure(2, weight=1)
 
         self.panel_orig = self.create_image_panel(visuals_inner, 0, "ORIGINAL IMAGE")
-        self.panel_track = self.create_image_panel(visuals_inner, 1, "TRACKING PATTERN")
+        self.panel_track = self.create_image_panel(visuals_inner, 1, "DETECTED ERROR")
         self.panel_recon = self.create_image_panel(visuals_inner, 2, "RECONSTRUCTED")
 
         # 2. Confidence and SFS Metrics panels (Side-by-side layout)
@@ -759,9 +757,7 @@ class PatternGuardApp(tk.Tk):
         btn.bind("<Leave>", on_leave)
         return btn
 
-    # ==========================================
     # SELECTION AND COMBOBOX EVENTS
-    # ==========================================
     def on_category_changed(self, event):
         cat = self.category_box.get()
         subclasses = [k for k, v in SUBCLASS_DATA.items() if v["category"] == cat]
