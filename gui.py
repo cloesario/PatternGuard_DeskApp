@@ -4,12 +4,9 @@ import threading
 import tkinter as tk
 import cv2
 import numpy as np
-
 from tkinter import ttk, filedialog, messagebox
 from evaluation_metrics import calculate_restoration_metrics
-
 from PIL import Image, ImageTk, ImageOps
-
 from cultural_data import SUBCLASS_DATA
 from dsp_engine import (
     run_algorithm_i_autocorrelation,
@@ -23,7 +20,6 @@ class PatternGuardApp(tk.Tk):
         self.title("PatternGuard Desktop")
         self.geometry("1280x880")
         self.minsize(1200, 840)
-
         self.configure_styles()
 
         # State Variables
@@ -31,9 +27,9 @@ class PatternGuardApp(tk.Tk):
         self.original_bgr = None
         self.original_image_pil = None
         self.tracking_pattern_pil = None
+        self.heatmap_hires = None
         self.reconstructed_image_pil = None
-        self.reconstructed_image_hires = None  # High-resolution for export
-
+        self.reconstructed_image_hires = None
         self.img_tk_cache = {}
         self.active_subclass_id = "concha_concha"
 
@@ -58,7 +54,6 @@ class PatternGuardApp(tk.Tk):
             "emerald": "#10B981"
         }
         self.configure(bg=self.colors["bg"])
-
         self.style = ttk.Style()
         self.style.theme_use("clam")
         self.style.configure("TCombobox",
@@ -68,10 +63,6 @@ class PatternGuardApp(tk.Tk):
                              bordercolor=self.colors["border"],
                              lightcolor=self.colors["border"],
                              darkcolor=self.colors["border"])
-        self.option_add("*TCombobox*Listbox.background", "#FFFFFF")
-        self.option_add("*TCombobox*Listbox.foreground", self.colors["text_dark"])
-        self.option_add("*TCombobox*Listbox.selectBackground", self.colors["maroon"])
-        self.option_add("*TCombobox*Listbox.selectForeground", "#FFFFFF")
 
     def create_layout(self):
         # HEADER BAR
@@ -91,13 +82,6 @@ class PatternGuardApp(tk.Tk):
         sub_title_lbl = tk.Label(brand_frame, text="FILIPINO TEXTILE AUDITING & RESTORATION FRAMEWORK", bg="#FFFFFF", fg=self.colors["maroon"], font=("Segoe UI", 7, "bold"))
         sub_title_lbl.pack(anchor="w", pady=(2, 0))
 
-        status_frame = tk.Frame(header_bar, bg="#FFFFFF")
-        status_frame.pack(side="right", padx=25, pady=20)
-        status_dot = tk.Label(status_frame, text="●", bg="#FFFFFF", fg=self.colors["gold"], font=("Segoe UI", 11))
-        status_dot.pack(side="left", padx=(0, 6))
-        status_lbl = tk.Label(status_frame, text="DSP ENGINE READY", bg="#FFFFFF", fg=self.colors["text_grey"], font=("Segoe UI", 9, "bold"))
-        status_lbl.pack(side="left")
-
         sep = tk.Frame(self, bg=self.colors["border"], height=1)
         sep.pack(fill="x", side="top")
 
@@ -107,6 +91,7 @@ class PatternGuardApp(tk.Tk):
 
         self.scrollbar = ttk.Scrollbar(workspace_wrapper, orient="vertical")
         self.scrollbar.pack(side="right", fill="y")
+
         self.canvas = tk.Canvas(workspace_wrapper, bg=self.colors["bg"], bd=0, highlightthickness=0, yscrollcommand=self.scrollbar.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.config(command=self.canvas.yview)
@@ -116,18 +101,6 @@ class PatternGuardApp(tk.Tk):
 
         main_container.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_frame_id, width=e.width))
-
-        def on_mouse_wheel(event):
-            if event.delta:
-                self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            elif event.num == 4:
-                self.canvas.yview_scroll(-1, "units")
-            elif event.num == 5:
-                self.canvas.yview_scroll(1, "units")
-
-        self.canvas.bind_all("<MouseWheel>", on_mouse_wheel)
-        self.canvas.bind_all("<Button-4>", on_mouse_wheel)
-        self.canvas.bind_all("<Button-5>", on_mouse_wheel)
 
         left_col = tk.Frame(main_container, bg=self.colors["bg"], width=380)
         left_col.pack(side="left", fill="both", padx=(25, 0), pady=20)
@@ -186,10 +159,8 @@ class PatternGuardApp(tk.Tk):
         lbl_cat = tk.Label(config_inner, text="TEXTILE CATEGORY", bg="#FFFFFF", fg=self.colors["text_grey"], font=("Segoe UI", 8, "bold"))
         lbl_cat.pack(anchor="w", pady=(0, 4))
 
-        # Show available categories but do not preselect; user must choose explicitly
         categories = sorted({v["category"] for v in SUBCLASS_DATA.values()})
         self.category_box = ttk.Combobox(config_inner, values=categories, state="readonly", font=("Segoe UI", 10))
-        # no default selection
         self.category_box.pack(fill="x", pady=(0, 15))
         self.category_box.bind("<<ComboboxSelected>>", self.on_category_changed)
 
@@ -197,7 +168,6 @@ class PatternGuardApp(tk.Tk):
         lbl_sub.pack(anchor="w", pady=(0, 4))
 
         self.subclass_box = ttk.Combobox(config_inner, state="readonly", font=("Segoe UI", 10))
-        # initially empty; populate when user chooses a category
         self.subclass_box["values"] = []
         self.subclass_box.set("")
         self.subclass_box.pack(fill="x", pady=(0, 20))
@@ -220,7 +190,7 @@ class PatternGuardApp(tk.Tk):
         )
         self.rerun_pipeline_btn.pack(side="left", fill="x", padx=(5, 0))
 
-        # DESCRIPTION CARD (moved below Configuration)
+        # DESCRIPTION CARD
         self.card_description = self.create_card(parent, "Description", "📝")
         self.card_description.pack(fill="x", pady=(12, 20))
 
@@ -244,24 +214,38 @@ class PatternGuardApp(tk.Tk):
         self.card_visuals = self.create_card(parent, "Visual Results & Comparisons", "📊")
         self.card_visuals.pack(fill="x", pady=(0, 20))
 
-        card_header_bar = getattr(self.card_visuals, "header_container")
-        self.export_btn = self.create_flat_button(
-            card_header_bar, text="📦 Export Reconstruction (.PNG)", bg=self.colors["navy_btn"], fg="#FFFFFF",
-            hover_bg=self.colors["navy_btn_hover"], command=self.export_restored_photo, font=("Segoe UI", 9, "bold"), height=30
-        )
-        self.export_btn.pack(side="right", padx=15, pady=8)
-        self.export_btn.configure(state="disabled")
-
         visuals_inner = tk.Frame(self.card_visuals, bg="#FFFFFF")
         visuals_inner.pack(fill="x", padx=15, pady=(5, 15))
-
         visuals_inner.columnconfigure(0, weight=1)
         visuals_inner.columnconfigure(1, weight=1)
         visuals_inner.columnconfigure(2, weight=1)
 
         self.panel_orig = self.create_image_panel(visuals_inner, 0, "ORIGINAL IMAGE")
         self.panel_track = self.create_image_panel(visuals_inner, 1, "DETECTED ERROR HEATMAP")
-        self.panel_recon = self.create_image_panel(visuals_inner, 2, "RECONSTRUCTED EXEMPLAR")
+        self.panel_recon = self.create_image_panel(visuals_inner, 2, "RECONSTRUCTED TEXTILE")
+
+        # Buttons row below panels - aligned to match panel width
+        buttons_inner = tk.Frame(self.card_visuals, bg="#FFFFFF")
+        buttons_inner.pack(fill="x", padx=15, pady=(0, 15))
+        buttons_inner.columnconfigure(0, weight=1)
+        buttons_inner.columnconfigure(1, weight=1)
+        buttons_inner.columnconfigure(2, weight=1)
+
+        # Heatmap export button
+        self.export_heatmap_btn = self.create_flat_button(
+            buttons_inner, text="📦 Export Heatmap", bg=self.colors["navy_btn"], fg="#FFFFFF",
+            hover_bg=self.colors["navy_btn_hover"], command=self.export_heatmap, font=("Segoe UI", 9, "bold"), height=20
+        )
+        self.export_heatmap_btn.grid(row=0, column=1, padx=8, pady=(10, 0), sticky="ew")
+        self.export_heatmap_btn.configure(state="disabled")
+
+        # Reconstruction export button
+        self.export_btn = self.create_flat_button(
+            buttons_inner, text="📦 Export Reconstruction", bg=self.colors["navy_btn"], fg="#FFFFFF",
+            hover_bg=self.colors["navy_btn_hover"], command=self.export_restored_photo, font=("Segoe UI", 9, "bold"), height=20
+        )
+        self.export_btn.grid(row=0, column=2, padx=8, pady=(10, 0), sticky="ew")
+        self.export_btn.configure(state="disabled")
 
         metrics_container = tk.Frame(parent, bg=self.colors["bg"])
         metrics_container.pack(fill="x", pady=(0, 20))
@@ -274,8 +258,11 @@ class PatternGuardApp(tk.Tk):
         conf_inner = tk.Frame(self.card_confidence, bg="#FFFFFF")
         conf_inner.pack(fill="both", expand=True, padx=15, pady=(5, 15))
 
-        self.group_lbl = tk.Label(conf_inner, text="Wallpaper Group: Waiting for configuration", bg="#FFFFFF", fg=self.colors["text_primary"], font=("Segoe UI", 11, "italic", "bold"))
+        self.group_lbl = tk.Label(conf_inner, text="Wallpaper Group: Waiting for configuration", bg="#FFFFFF", fg=self.colors["text_primary"], font=("Segoe UI", 11, "italic", "bold"), cursor="hand2")
         self.group_lbl.pack(anchor="w", pady=(0, 10))
+        self.group_lbl.bind("<Button-1>", lambda e: self.show_wallpaper_guide_window())
+        
+        self.guide_window = None
 
         self.progress_canvas = tk.Canvas(conf_inner, height=10, bg="#E3DCD6", bd=0, highlightthickness=0)
         self.progress_canvas.pack(fill="x", pady=(0, 15))
@@ -323,7 +310,7 @@ class PatternGuardApp(tk.Tk):
         self.rerun_btn.pack(fill="x")
         self.rerun_btn.configure(state="disabled")
 
-        # Traditional Context Card
+        # Context Card
         self.card_context = tk.Frame(parent, bg="#FAF6F0", highlightbackground=self.colors["border"], highlightthickness=1, bd=0)
         self.card_context.pack(fill="x")
 
@@ -336,8 +323,6 @@ class PatternGuardApp(tk.Tk):
         context_title = tk.Label(context_inner, text="📜  Traditional Context & Cultural Origin", bg="#FAF6F0", fg=self.colors["text_primary"], font=("Segoe UI", 11, "bold"))
         context_title.pack(anchor="w", pady=(0, 5))
 
-        # Description has been moved to the left column; this panel shows Cultural Background only.
-
         cultural_label = tk.Label(context_inner, text="Cultural Background:", bg="#FAF6F0", fg=self.colors["text_primary"], font=("Segoe UI", 9, "bold"))
         cultural_label.pack(anchor="w", pady=(0, 2))
 
@@ -346,64 +331,51 @@ class PatternGuardApp(tk.Tk):
         self.cultural_text.insert("1.0", "Waiting for configuration")
         self.cultural_text.configure(state="disabled")
 
-        self.source_lbl = tk.Label(context_inner, text="Source: Waiting for configuration", bg="#FAF6F0", fg=self.colors["text_grey"], font=("Segoe UI", 8), cursor="hand2")
+        self.source_lbl = tk.Label(context_inner, text="Source: Waiting for configuration", bg="#FAF6F0", fg=self.colors["text_grey"], font=("Segoe UI", 8))
         self.source_lbl.pack(anchor="w")
 
     def create_card(self, parent, title_text, icon_prefix="", has_border=True):
         card = tk.Frame(parent, bg="#FFFFFF")
         if has_border:
             card.configure(highlightbackground=self.colors["border"], highlightthickness=1, bd=0)
-
         header_container = tk.Frame(card, bg="#FFFFFF")
         header_container.pack(fill="x")
         card.header_container = header_container
-
         header_txt = f"{icon_prefix}  {title_text}" if icon_prefix else title_text
         header_lbl = tk.Label(header_container, text=header_txt, bg="#FFFFFF", fg=self.colors["text_primary"], font=("Segoe UI", 12, "bold"), anchor="w")
         header_lbl.pack(side="left", padx=15, pady=(15, 8))
-
         return card
 
     def create_image_panel(self, parent, col, label_text):
         frame = tk.Frame(parent, bg="#FFFFFF")
         frame.grid(row=0, column=col, padx=8, sticky="nsew")
-
         lbl = tk.Label(frame, text=label_text, bg="#FFFFFF", fg=self.colors["text_grey"], font=("Segoe UI", 9, "bold"))
         lbl.pack(anchor="center", pady=(5, 6))
-
-        slot = tk.Frame(frame, bg="#F5F3EF", highlightbackground=self.colors["border"], highlightthickness=1, bd=0, width=230, height=220)
+        slot = tk.Frame(frame, bg="#F5F3EF", highlightbackground=self.colors["border"], highlightthickness=1, bd=0, width=280, height=280)
         slot.pack(fill="both", expand=True)
         slot.pack_propagate(False)
-
         placeholder = tk.Label(slot, text="Awaiting processing" if col > 0 else "No image uploaded", bg="#F5F3EF", fg=self.colors["text_grey"], font=("Segoe UI", 10))
         placeholder.pack(expand=True)
         slot.placeholder = placeholder
-
         return slot
 
     def create_stat_box(self, parent, col, name):
         box = tk.Frame(parent, bg="#FAF6F0", highlightbackground=self.colors["border"], highlightthickness=1, bd=0)
         box.grid(row=0, column=col, padx=5, pady=5, sticky="nsew")
-
         name_lbl = tk.Label(box, text=name, bg="#FAF6F0", fg=self.colors["text_grey"], font=("Segoe UI", 9))
         name_lbl.pack(anchor="center", pady=(8, 2))
-
         num_lbl = tk.Label(box, text="--", bg="#FAF6F0", fg=self.colors["text_grey"], font=("Segoe UI", 14, "bold"))
         num_lbl.pack(anchor="center", pady=(0, 8))
-
         box.num_lbl = num_lbl
         return box
 
     def create_grid_cell(self, parent, row, col, label_text, default_val):
         cell = tk.Frame(parent, bg="#FAF6F0", highlightbackground=self.colors["border"], highlightthickness=1, bd=0)
         cell.grid(row=row, column=col, padx=4, pady=4, sticky="nsew")
-
         lbl = tk.Label(cell, text=f"{label_text}: ", bg="#FAF6F0", fg=self.colors["text_grey"], font=("Segoe UI", 9))
         lbl.pack(side="left", padx=(10, 2), pady=6)
-
         val_lbl = tk.Label(cell, text=default_val, bg="#FAF6F0", fg=self.colors["text_dark"], font=("Segoe UI", 10, "bold"))
         val_lbl.pack(side="left")
-
         cell.val_lbl = val_lbl
         return cell
 
@@ -413,9 +385,7 @@ class PatternGuardApp(tk.Tk):
         w = self.progress_canvas.winfo_width()
         if w <= 1:
             w = 340
-
         self.create_rounded_rect(self.progress_canvas, 0, 0, w, 10, fill="#E3DCD6")
-
         if percentage > 0:
             fill_w = max(10, int((percentage / 100.0) * w))
             bar_color = self.colors["emerald"] if percentage >= 95 else self.colors["maroon"]
@@ -431,15 +401,6 @@ class PatternGuardApp(tk.Tk):
         btn = tk.Button(parent, text=text, bg=bg, fg=fg, font=font, relief="flat", bd=0,
                         activebackground=hover_bg, activeforeground=fg, command=command, cursor="hand2")
         btn.configure(pady=6)
-
-        def on_enter(e):
-            if btn['state'] == "normal": btn.configure(bg=hover_bg)
-
-        def on_leave(e):
-            if btn['state'] == "normal": btn.configure(bg=bg)
-
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
         return btn
 
     def create_flat_border_button(self, parent, text, bg, fg, hover_bg, border_color, command):
@@ -447,96 +408,36 @@ class PatternGuardApp(tk.Tk):
                         highlightbackground=border_color, highlightthickness=1,
                         activebackground=hover_bg, activeforeground=fg, command=command, cursor="hand2")
         btn.configure(pady=6)
-
-        def on_enter(e):
-            if btn['state'] == "normal": btn.configure(bg=hover_bg)
-
-        def on_leave(e):
-            if btn['state'] == "normal": btn.configure(bg=bg)
-
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
         return btn
 
     def on_category_changed(self, event):
         cat = self.category_box.get()
         subclasses = [k for k, v in SUBCLASS_DATA.items() if v["category"] == cat]
-        # populate subclass list but do not auto-select — user must choose explicitly
         self.subclass_box["values"] = subclasses
         self.subclass_box.set("")
-        # do not call on_subclass_changed automatically; wait for explicit user selection
 
     def on_subclass_changed(self, event):
         sub_id = self.subclass_box.get()
-        # Reset visual outputs and metrics until configuration is applied
         self.tracking_pattern_pil = None
+        self.heatmap_hires = None
         self.reconstructed_image_pil = None
         self.reconstructed_image_hires = None
-        self.panel_track.placeholder.configure(text="Awaiting processing")
-        self.panel_recon.placeholder.configure(text="Awaiting processing")
 
-        for widget in [self.panel_track, self.panel_recon]:
-            for child in widget.winfo_children():
-                if child != widget.placeholder:
-                    child.destroy()
-            widget.placeholder.pack(expand=True)
-
-        self.draw_progress_bar(0)
-
-        self.box_acc.num_lbl.configure(text="--", fg=self.colors["text_grey"])
-        self.box_rec.num_lbl.configure(text="--", fg=self.colors["text_grey"])
-        self.box_f1.num_lbl.configure(text="--", fg=self.colors["text_grey"])
-
-        self.sfs_num_lbl.configure(text="--", fg=self.colors["text_grey"])
-        self.grid_acc.val_lbl.configure(text="--")
-        self.grid_rec.val_lbl.configure(text="--")
-        self.grid_fpr.val_lbl.configure(text="--")
-        self.grid_iou.val_lbl.configure(text="--")
-
-        self.export_btn.configure(state="disabled")
-        self.rerun_btn.configure(state="disabled")
-
-        # If a valid subclass was selected, display its details
         if sub_id and sub_id in SUBCLASS_DATA:
-             self.active_subclass_id = sub_id
-             data = SUBCLASS_DATA[sub_id]
+            self.active_subclass_id = sub_id
+            data = SUBCLASS_DATA[sub_id]
+            self.description_text.configure(state="normal")
+            self.description_text.delete("1.0", tk.END)
+            self.description_text.insert("1.0", data.get("description", ""))
+            self.description_text.configure(state="disabled")
 
-             # populate Description (left column)
-             try:
-                 self.description_text.configure(state="normal")
-                 self.description_text.delete("1.0", tk.END)
-                 self.description_text.insert("1.0", data.get("description", ""))
-                 self.description_text.configure(state="disabled")
-             except AttributeError:
-                 # description widget may not exist in older layouts
-                 pass
+            self.cultural_text.configure(state="normal")
+            self.cultural_text.delete("1.0", tk.END)
+            self.cultural_text.insert("1.0", data.get("Cultural Background", ""))
+            self.cultural_text.configure(state="disabled")
 
-             # populate Cultural Background (right column)
-             self.cultural_text.configure(state="normal")
-             self.cultural_text.delete("1.0", tk.END)
-             self.cultural_text.insert("1.0", data.get("Cultural Background", ""))
-             self.cultural_text.configure(state="disabled")
-
-             self.group_lbl.configure(text=f"Wallpaper Group: {data.get('group', 'Unknown')}")
-             self.source_lbl.configure(text=f"Source: {data.get('source', 'Unknown')}")
-        else:
-             # keep waiting state
-             self.active_subclass_id = None
-             try:
-                 self.description_text.configure(state="normal")
-                 self.description_text.delete("1.0", tk.END)
-                 self.description_text.insert("1.0", "Waiting for configuration")
-                 self.description_text.configure(state="disabled")
-             except AttributeError:
-                 pass
-
-             self.cultural_text.configure(state="normal")
-             self.cultural_text.delete("1.0", tk.END)
-             self.cultural_text.insert("1.0", "Waiting for configuration")
-             self.cultural_text.configure(state="disabled")
-
-             self.group_lbl.configure(text="Wallpaper Group: Waiting for configuration")
-             self.source_lbl.configure(text="Source: Waiting for configuration")
+            self.group_lbl.configure(text=f"Wallpaper Group: {data.get('group', 'Unknown')}")
+            self.source_lbl.configure(text=f"Source: {data.get('source', 'Unknown')}")
 
     def trigger_file_upload(self):
         file_path = filedialog.askopenfilename(
@@ -545,20 +446,16 @@ class PatternGuardApp(tk.Tk):
         )
         if not file_path:
             return
-
         self.uploaded_file_path = file_path
         file_name = os.path.basename(file_path)
-
         short_name = file_name if len(file_name) < 22 else f"{file_name[:18]}..."
         self.file_name_lbl.configure(text=short_name)
-
         self.upload_canvas.pack_forget()
         self.uploaded_state_frame.pack(fill="x")
-
         try:
             self.original_bgr = cv2.imread(file_path)
             pil_img = Image.open(file_path)
-            self.original_image_pil = ImageOps.fit(pil_img, (220, 210), Image.Resampling.LANCZOS)
+            self.original_image_pil = ImageOps.fit(pil_img, (270, 270), Image.Resampling.LANCZOS)
             self.display_pil_in_panel(self.panel_orig, self.original_image_pil, "orig")
         except Exception as e:
             messagebox.showerror("Error Reading Image", f"Failed to open image: {str(e)}")
@@ -568,13 +465,10 @@ class PatternGuardApp(tk.Tk):
         for child in panel_widget.winfo_children():
             if child != panel_widget.placeholder:
                 child.destroy()
-
         img_tk = ImageTk.PhotoImage(image=pil_image)
         self.img_tk_cache[cache_key] = img_tk
         lbl = tk.Label(panel_widget, image=img_tk, bg="#F5F3EF")
         lbl.pack(fill="both", expand=True)
-
-    """DSP ENGINE"""
 
     def run_reconstruction_pipeline(self):
         if self.original_bgr is None:
@@ -585,7 +479,6 @@ class PatternGuardApp(tk.Tk):
 
         def worker():
             start_time = time.time()
-
             I_bgr_resized = cv2.resize(self.original_bgr, (256, 256))
             I_gray_eval = cv2.cvtColor(I_bgr_resized, cv2.COLOR_BGR2GRAY)
 
@@ -595,28 +488,15 @@ class PatternGuardApp(tk.Tk):
             defect_pixel_count = int((M_mask == 255).sum())
             no_defect_detected = (defect_pixel_count == 0)
 
-            if no_defect_detected:
-                print("[PatternGuard] Warning: Algorithm II found no defect pixels.")
-
             I_final_bgr = run_algorithm_iii_template_alignment(
                 I_bgr_resized, M_mask, a1, a2, symmetry_group=detected_group
             )
 
             runtime_ms = (time.time() - start_time) * 1000
-
             I_final_gray = cv2.cvtColor(I_final_bgr, cv2.COLOR_BGR2GRAY)
 
-            res = calculate_restoration_metrics(
-                I_gray_eval,
-                I_final_gray,
-                M_mask,
-                None
-            )
-
-            if res is None:
-                ssim_val, accuracy_val, recall_val, fpr_val, iou_val, sfs_score = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-            else:
-                ssim_val, accuracy_val, recall_val, fpr_val, iou_val, sfs_score = res
+            res = calculate_restoration_metrics(I_gray_eval, I_final_gray, M_mask, None)
+            ssim_val, accuracy_val, recall_val, fpr_val, iou_val, sfs_score = res if res else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
             color_heatmap = cv2.applyColorMap(
                 cv2.normalize(diff_map, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8),
@@ -627,33 +507,33 @@ class PatternGuardApp(tk.Tk):
             heatmap_rgb = cv2.cvtColor(color_heatmap, cv2.COLOR_BGR2RGB)
             final_rgb = cv2.cvtColor(I_final_bgr, cv2.COLOR_BGR2RGB)
 
-            track_pil = Image.fromarray(heatmap_rgb).resize((220, 210), Image.Resampling.LANCZOS)
-            recon_pil = Image.fromarray(final_rgb).resize((220, 210), Image.Resampling.LANCZOS)
+            track_pil = Image.fromarray(heatmap_rgb).resize((270, 270), Image.Resampling.LANCZOS)
+            recon_pil = Image.fromarray(final_rgb).resize((270, 270), Image.Resampling.LANCZOS)
             recon_hires = Image.fromarray(final_rgb)
+            heatmap_hires = Image.fromarray(heatmap_rgb)
 
             self.after(0, lambda: self.update_pipeline_ui(
-                track_pil, recon_pil, recon_hires, sfs_score, ssim_val, accuracy_val, recall_val,
+                track_pil, recon_pil, recon_hires, heatmap_hires, sfs_score, ssim_val, accuracy_val, recall_val,
                 fpr_val, iou_val, a1, a2, theta_dom, detected_group, runtime_ms,
                 no_defect_detected=no_defect_detected
             ))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def update_pipeline_ui(self, track_pil, recon_pil, recon_hires, sfs_score, ssim_val, accuracy_val, recall_val,
+    def update_pipeline_ui(self, track_pil, recon_pil, recon_hires, heatmap_hires, sfs_score, ssim_val, accuracy_val, recall_val,
                            fpr_val, iou_val, a1, a2, theta_dom, detected_group, runtime_ms,
                            no_defect_detected=False):
+        self.reconstruct_btn.configure(state="normal")
         self.tracking_pattern_pil = track_pil
+        self.heatmap_hires = heatmap_hires
         self.reconstructed_image_pil = recon_pil
         self.reconstructed_image_hires = recon_hires
 
         self.display_pil_in_panel(self.panel_track, track_pil, "track")
         self.display_pil_in_panel(self.panel_recon, recon_pil, "recon")
 
-        try:
-            if detected_group:
-                self.group_lbl.configure(text=f"Wallpaper Group: {detected_group}")
-        except Exception:
-            pass
+        if detected_group:
+            self.group_lbl.configure(text=f"Wallpaper Group: {detected_group}")
 
         if no_defect_detected:
             self.sfs_num_lbl.configure(text="N/A", fg=self.colors["text_grey"])
@@ -675,6 +555,7 @@ class PatternGuardApp(tk.Tk):
         self.grid_iou.val_lbl.configure(text=f"{iou_val:.1f}%")
 
         self.export_btn.configure(state="normal")
+        self.export_heatmap_btn.configure(state="normal")
         self.rerun_btn.configure(state="normal")
 
     def run_optimization_pipeline(self):
@@ -694,15 +575,108 @@ class PatternGuardApp(tk.Tk):
             return
 
         try:
-            # Upscale to 500x500 px with high-quality LANCZOS interpolation
-            export_image = self.reconstructed_image_hires.resize(
-                (500, 500),
-                Image.Resampling.LANCZOS
-            )
-
-            # Save with high quality
+            export_image = self.reconstructed_image_hires.resize((500, 500), Image.Resampling.LANCZOS)
             export_image.save(save_path, format="PNG", quality=95)
-            messagebox.showinfo("Export Success",
-                f"High-resolution reconstructed image (500x500px) saved successfully to:\n{save_path}")
+            messagebox.showinfo("Export Success", f"Reconstructed image saved to:\n{save_path}")
         except Exception as e:
-            messagebox.showerror("Export Failed", f"Could not save reconstructed file: {str(e)}")
+            messagebox.showerror("Export Failed", f"Could not save file: {str(e)}")
+
+    def export_heatmap(self):
+        if not self.heatmap_hires:
+            messagebox.showwarning("No Image", "Please run the pipeline first!")
+            return
+
+        save_path = filedialog.asksaveasfilename(
+            title="Export Error Heatmap",
+            defaultextension=".png",
+            filetypes=[("PNG Image", "*.png")]
+        )
+        if not save_path:
+            return
+
+        try:
+            export_image = self.heatmap_hires.resize((500, 500), Image.Resampling.LANCZOS)
+            export_image.save(save_path, format="PNG", quality=95)
+            messagebox.showinfo("Export Success", f"Heatmap saved to:\n{save_path}")
+        except Exception as e:
+            messagebox.showerror("Export Failed", f"Could not save file: {str(e)}")
+
+    def show_wallpaper_guide_window(self):
+        guide_path = os.path.join(os.path.dirname(__file__), "assets", "wallpaper_group_guide.png")
+        
+        if not os.path.exists(guide_path):
+            messagebox.showwarning("Guide Not Found", "Wallpaper group guide image not found!")
+            return
+        
+        # Close existing window if open
+        if self.guide_window is not None and self.guide_window.winfo_exists():
+            self.guide_window.destroy()
+        
+        # Create new window
+        self.guide_window = tk.Toplevel(self)
+        self.guide_window.title("Wallpaper Group Classification Guide")
+        self.guide_window.geometry("600x750")
+        self.guide_window.configure(bg=self.colors["bg"])
+        
+        # Position window below and to the right of main window
+        self.guide_window.geometry(f"+{self.winfo_x() + 100}+{self.winfo_y() + 200}")
+        
+        # Header frame
+        header_frame = tk.Frame(self.guide_window, bg=self.colors["navy_btn"])
+
+        
+        header_label = tk.Label(
+            header_frame, 
+            text="Wallpaper Group Classification", 
+            bg=self.colors["navy_btn"], 
+            fg="#FFFFFF",
+            font=("Segoe UI", 12, "bold"),
+            padx=15,
+            pady=10
+        )
+        header_label.pack(side="left", fill="x", expand=True)
+        
+        close_btn = tk.Button(
+            header_frame,
+            text="✕",
+            bg=self.colors["navy_btn"],
+            fg="#FFFFFF",
+            font=("Segoe UI", 14, "bold"),
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=5,
+            command=lambda: self.close_wallpaper_window(),
+            cursor="hand2",
+            activebackground="#0D1541"
+        )
+        close_btn.pack(side="right", padx=10, pady=5)
+        
+        # Image display area
+        try:
+            guide_img = Image.open(guide_path)
+            # Scale to fit window
+            img_width = 580
+            ratio = img_width / guide_img.width
+            img_height = int(guide_img.height * ratio)
+            guide_img_resized = guide_img.resize((img_width, img_height), Image.Resampling.LANCZOS)
+            
+            guide_tk = ImageTk.PhotoImage(guide_img_resized)
+            
+            img_label = tk.Label(self.guide_window, image=guide_tk, bg=self.colors["bg"])
+            img_label.image = guide_tk
+            img_label.pack(fill="both", expand=True, padx=10, pady=10)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load guide image: {str(e)}")
+            self.guide_window.destroy()
+            self.guide_window = None
+    
+    def close_wallpaper_window(self):
+        if self.guide_window is not None and self.guide_window.winfo_exists():
+            self.guide_window.destroy()
+            self.guide_window = None
+
+if __name__ == "__main__":
+    app = PatternGuardApp()
+    app.mainloop()

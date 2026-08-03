@@ -1,32 +1,7 @@
-"""
-PatternGuard - Evaluation Metrics (FIXED & HARDENED)
-
-Exposes calculate_restoration_metrics(...) which computes:
- - SSIM (Structural Similarity on non-defective/healthy fabric)
- - Accuracy (Reconstruction fidelity in target defect regions)
- - Recall (Defect region coverage)
- - FPR (False Positive Rate on non-defective fabric)
- - IoU (Intersection over Union between ground truth and actual modified pixels)
- - SFS (Symmetry Fidelity Score): Robust composite weighted score
-
-SFS Weights:
- - Accuracy (Reconstruction quality): 35%
- - SSIM (Clean region preservation): 25%
- - Recall (Defect coverage): 15%
- - FPR Inverted (Avoid collateral damage): 15%
- - IoU (Mask alignment precision): 10%
-
-DSP INTEGRATION NOTES:
-1. M_mask should be the ground-truth defect mask (or isolated defect mask from Alg II).
-2. M_predicted SHOULD NOT default to M_mask. If M_predicted is None, this module now
-   automatically calculates the PREDICTED mask by detecting where Algorithm III
-   actually altered pixels (|I_orig - I_recon| > threshold).
-"""
 # evaluation_metrics.py
 from typing import Optional, Tuple
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
-
 
 def _normalize_image(arr, name):
     a = np.asarray(arr)
@@ -36,7 +11,6 @@ def _normalize_image(arr, name):
         raise ValueError(f"{name} must be a 2D grayscale image, got shape {np.asarray(arr).shape}")
     return a.astype(np.float32)
 
-
 def _normalize_mask(arr, name):
     a = np.asarray(arr)
     if a.ndim == 3:
@@ -45,16 +19,14 @@ def _normalize_mask(arr, name):
         raise ValueError(f"{name} must be a 2D mask, got shape {np.asarray(arr).shape}")
     return (a > 0).astype(np.uint8)
 
-
 def calculate_restoration_metrics(
         I_original_gray: np.ndarray,
         I_reconstructed_gray: np.ndarray,
         M_mask: np.ndarray,
         M_predicted: Optional[np.ndarray] = None,
-        change_threshold: float = 12.0
-) -> Tuple[float, float, float, float, float, float]:
+        change_threshold: float = 12.0) -> Tuple[float, float, float, float, float, float]:
     """
-    Computes SSIM, restoration accuracy, and defect metrics, returning:
+    Computes SSIM, restoration accuracy, and defect metrics:
     (ssim_value, accuracy_value, recall_value, fpr_value, iou_value, sfs_score)
     """
     try:
@@ -63,7 +35,6 @@ def calculate_restoration_metrics(
 
         I_orig = _normalize_image(I_original_gray, "I_original_gray")
         I_recon = _normalize_image(I_reconstructed_gray, "I_reconstructed_gray")
-
         if I_orig.shape != I_recon.shape:
             raise ValueError(f"Shape mismatch: Original {I_orig.shape} vs Reconstructed {I_recon.shape}")
 
@@ -76,13 +47,10 @@ def calculate_restoration_metrics(
             M_pred = (pixel_diff_full > change_threshold).astype(np.uint8)
         else:
             M_pred = _normalize_mask(M_predicted, "M_predicted")
-            if M_pred.shape != I_orig.shape:
-                raise ValueError(f"Shape mismatch: M_predicted {M_pred.shape} vs image {I_orig.shape}")
 
         # 1. SSIM Evaluation on clean regions
         mask_clean = (M_defect == 0)
         clean_pixels = int(np.sum(mask_clean))
-
         if clean_pixels > 0:
             data_range = float(np.ptp(I_orig))
             if data_range <= 0.0:
@@ -99,7 +67,6 @@ def calculate_restoration_metrics(
         # 2. Restoration Accuracy
         defect_mask_bool = (M_defect == 1)
         defect_pixels = int(np.sum(defect_mask_bool))
-
         if defect_pixels > 0:
             defect_diff = np.abs(I_recon[defect_mask_bool] - I_orig[defect_mask_bool])
             reconstructed_count = int(np.sum(defect_diff >= change_threshold))
@@ -128,14 +95,13 @@ def calculate_restoration_metrics(
 
         # 4. Symmetry Fidelity Score (Composite)
         sfs_score = (
-                0.35 * accuracy_value
-                + 0.25 * ssim_value
-                + 0.15 * recall_value
-                + 0.15 * (100.0 - fpr_value)
-                + 0.10 * iou_value
+            0.35 * accuracy_value
+            + 0.25 * ssim_value
+            + 0.15 * recall_value
+            + 0.15 * (100.0 - fpr_value)
+            + 0.10 * iou_value
         )
 
-        # Penalize multi-tile canvas scrambling across clean areas
         if clean_pixels > 0:
             background_damage = float(np.mean(np.abs(I_orig[mask_clean] - I_recon[mask_clean])))
             if background_damage > 12.0:
@@ -152,7 +118,6 @@ def calculate_restoration_metrics(
             float(np.clip(iou_value, 0.0, 100.0)),
             sfs_score,
         )
-
     except Exception as exc:
         print(f"[calculate_restoration_metrics] error: {exc}")
         return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
