@@ -202,6 +202,30 @@ class PatternGuardApp(tk.Tk):
         self.description_text.insert("1.0", "Waiting for configuration")
         self.description_text.configure(state="disabled")
 
+        # TRADITIONAL CONTEXT & CULTURAL ORIGIN (moved here to sit below Description)
+        self.card_context = tk.Frame(parent, bg="#FAF6F0", highlightbackground=self.colors["border"], highlightthickness=1, bd=0)
+        self.card_context.pack(fill="x", pady=(12, 0))
+
+        gold_accent_bar = tk.Frame(self.card_context, bg=self.colors["gold"], width=4)
+        gold_accent_bar.pack(side="left", fill="y")
+
+        context_inner = tk.Frame(self.card_context, bg="#FAF6F0")
+        context_inner.pack(side="left", fill="both", expand=True, padx=15, pady=12)
+
+        context_title = tk.Label(context_inner, text="📜  Traditional Context & Cultural Origin", bg="#FAF6F0", fg=self.colors["text_primary"], font=("Segoe UI", 11, "bold"))
+        context_title.pack(anchor="w", pady=(0, 5))
+
+        cultural_label = tk.Label(context_inner, text="Cultural Background:", bg="#FAF6F0", fg=self.colors["text_primary"], font=("Segoe UI", 9, "bold"))
+        cultural_label.pack(anchor="w", pady=(0, 2))
+
+        self.cultural_text = tk.Text(context_inner, bg="#FAF6F0", fg=self.colors["text_dark"], font=("Segoe UI", 9, "italic"), wrap="word", relief="flat", bd=0, height=3, highlightthickness=0)
+        self.cultural_text.pack(fill="x", anchor="w", pady=(0, 8))
+        self.cultural_text.insert("1.0", "Waiting for configuration")
+        self.cultural_text.configure(state="disabled")
+
+        self.source_lbl = tk.Label(context_inner, text="Source: Waiting for configuration", bg="#FAF6F0", fg=self.colors["text_grey"], font=("Segoe UI", 8, "italic"))
+        self.source_lbl.pack(anchor="w")
+
     def draw_upload_slot(self):
         self.upload_canvas.delete("all")
         self.upload_canvas.create_rectangle(2, 2, 344, 152, outline=self.colors["border"], width=1.5, dash=(6, 4))
@@ -258,7 +282,7 @@ class PatternGuardApp(tk.Tk):
         conf_inner = tk.Frame(self.card_confidence, bg="#FFFFFF")
         conf_inner.pack(fill="both", expand=True, padx=15, pady=(5, 15))
 
-        self.group_lbl = tk.Label(conf_inner, text="Wallpaper Group: Waiting for configuration", bg="#FFFFFF", fg=self.colors["text_primary"], font=("Segoe UI", 11, "italic", "bold"), cursor="hand2")
+        self.group_lbl = tk.Label(conf_inner, text="Wallpaper Group Identified: ", bg="#FFFFFF", fg=self.colors["text_primary"], font=("Segoe UI", 11, "italic", "bold"), cursor="hand2")
         self.group_lbl.pack(anchor="w", pady=(0, 10))
         self.group_lbl.bind("<Button-1>", lambda e: self.show_wallpaper_guide_window())
         
@@ -277,6 +301,7 @@ class PatternGuardApp(tk.Tk):
         self.box_acc = self.create_stat_box(stats_row, 0, "Accuracy")
         self.box_rec = self.create_stat_box(stats_row, 1, "A1 Lattice")
         self.box_f1 = self.create_stat_box(stats_row, 2, "A2 Lattice")
+
 
         self.card_sfs = self.create_card(metrics_container, "SYMMETRY FIDELITY SCORE (%)", "", has_border=True)
         self.card_sfs.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
@@ -298,10 +323,10 @@ class PatternGuardApp(tk.Tk):
         grid_frame.columnconfigure(0, weight=1)
         grid_frame.columnconfigure(1, weight=1)
 
-        self.grid_acc = self.create_grid_cell(grid_frame, 0, 0, "Accuracy", "--")
-        self.grid_rec = self.create_grid_cell(grid_frame, 0, 1, "Recall", "--")
-        self.grid_fpr = self.create_grid_cell(grid_frame, 1, 0, "False Positive Rate", "--")
-        self.grid_iou = self.create_grid_cell(grid_frame, 1, 1, "Intersection over Union", "--")
+        self.grid_acc = self.create_grid_cell(grid_frame, 0, 0, "Accuracy ", "--")
+        self.grid_rec = self.create_grid_cell(grid_frame, 0, 1, "Recall ", "--")
+        self.grid_fpr = self.create_grid_cell(grid_frame, 1, 0, "False Positive Rate ", "--")
+        self.grid_iou = self.create_grid_cell(grid_frame, 1, 1, "Intersection over Union ", "--")
 
         self.rerun_btn = self.create_flat_border_button(
             sfs_inner, text="⚡ RUN OPTIMIZATION PIPELINE", bg="#FFFFFF", fg=self.colors["text_primary"],
@@ -310,29 +335,20 @@ class PatternGuardApp(tk.Tk):
         self.rerun_btn.pack(fill="x")
         self.rerun_btn.configure(state="disabled")
 
+        # Explainability / Transparency Card (shows after pipeline runs)
+        self.card_explain = self.create_card(parent, "Output Details", "🔍")
+        self.card_explain.pack(fill="x", pady=(0, 12))
+
+        exp_inner = tk.Frame(self.card_explain, bg="#FFFFFF")
+        exp_inner.pack(fill="x", padx=15, pady=(8, 12))
+
+        self.explain_text = tk.Text(exp_inner, bg="#FFFFFF", fg=self.colors["text_dark"], font=("Segoe UI", 10, "italic"), wrap="word", relief="flat", bd=0, height=12, highlightthickness=0)
+        self.explain_text.pack(fill="x")
+        self.explain_text.insert("1.0", "After a process, an interpretable output explanation will be displayed here... ")
+        self.explain_text.configure(state="disabled")
+
         # Context Card
-        self.card_context = tk.Frame(parent, bg="#FAF6F0", highlightbackground=self.colors["border"], highlightthickness=1, bd=0)
-        self.card_context.pack(fill="x")
-
-        gold_accent_bar = tk.Frame(self.card_context, bg=self.colors["gold"], width=4)
-        gold_accent_bar.pack(side="left", fill="y")
-
-        context_inner = tk.Frame(self.card_context, bg="#FAF6F0")
-        context_inner.pack(side="left", fill="both", expand=True, padx=15, pady=12)
-
-        context_title = tk.Label(context_inner, text="📜  Traditional Context & Cultural Origin", bg="#FAF6F0", fg=self.colors["text_primary"], font=("Segoe UI", 11, "bold"))
-        context_title.pack(anchor="w", pady=(0, 5))
-
-        cultural_label = tk.Label(context_inner, text="Cultural Background:", bg="#FAF6F0", fg=self.colors["text_primary"], font=("Segoe UI", 9, "bold"))
-        cultural_label.pack(anchor="w", pady=(0, 2))
-
-        self.cultural_text = tk.Text(context_inner, bg="#FAF6F0", fg=self.colors["text_dark"], font=("Segoe UI", 9, "italic"), wrap="word", relief="flat", bd=0, height=3, highlightthickness=0)
-        self.cultural_text.pack(fill="x", anchor="w", pady=(0, 8))
-        self.cultural_text.insert("1.0", "Waiting for configuration")
-        self.cultural_text.configure(state="disabled")
-
-        self.source_lbl = tk.Label(context_inner, text="Source: Waiting for configuration", bg="#FAF6F0", fg=self.colors["text_grey"], font=("Segoe UI", 8))
-        self.source_lbl.pack(anchor="w")
+        # (Moved to left column under Description)
 
     def create_card(self, parent, title_text, icon_prefix="", has_border=True):
         card = tk.Frame(parent, bg="#FFFFFF")
@@ -435,9 +451,6 @@ class PatternGuardApp(tk.Tk):
             self.cultural_text.delete("1.0", tk.END)
             self.cultural_text.insert("1.0", data.get("Cultural Background", ""))
             self.cultural_text.configure(state="disabled")
-
-            self.group_lbl.configure(text=f"Wallpaper Group: {data.get('group', 'Unknown')}")
-            self.source_lbl.configure(text=f"Source: {data.get('source', 'Unknown')}")
 
     def trigger_file_upload(self):
         file_path = filedialog.askopenfilename(
@@ -557,6 +570,38 @@ class PatternGuardApp(tk.Tk):
         self.export_btn.configure(state="normal")
         self.export_heatmap_btn.configure(state="normal")
         self.rerun_btn.configure(state="normal")
+
+        # Explainability panel
+        try:
+            self.explain_text.configure(state="normal")
+            self.explain_text.delete("1.0", tk.END)
+            if no_defect_detected:
+                expl = (
+                    "No defect detected. The system analyzed the repeating pattern and local pixel differences and did not find damaged areas.\n\n"
+                    "What was checked: pattern lattice (FFT autocorrelation), local deviation map, and adaptive thresholds.\n\n"
+                    "Result: No repair was applied."
+                )
+            else:
+                expl = (
+                    f"How this result was produced:\n\n"
+                    f"1) Pattern Analysis: the engine detected repeating tile sizes (A1={a1:.1f}, A2={a2:.1f}) and symmetry '{detected_group}'.\n\n"
+                    f"2) Defect detection: Damaged fabric is localized by combining texture chaos (highlighted in Red/Yellow) and physical holes/dark spots (appearing as Dark Blue). Both conditions are merged into the final repair mask.\n\n"
+                    f"3) Repair: Based on Exemplar healthy patches matching the textile’s symmetry are copied over damaged zones with feathered edge-blending to prevent halos, using a Telea inpainting fallback for any leftover gaps.\n\n"
+                    f"Key outputs:\n"
+                    f" - SSIM (clean areas): {ssim_val:.2f}%\n"
+                    f" - Symmetry Fidelity Score (SFS): {sfs_score:.2f}%\n" 
+                    f" - Accuracy (repair + clean preservation): {accuracy_val:.2f}%\n"
+                    f" - Recall (defect coverage): {recall_val:.2f}%\n"
+                    f" - False Positive Rate (FPR): {fpr_val:.2f}%\n"
+                    f" - IoU (mask alignment): {iou_val:.2f}%\n\n"
+                    f"Processing time: {runtime_ms:.0f} ms\n\n"
+                    "Simple Interpretation: Higher SFS/SSIM means the repaired image preserves the original fabric appearance; low FPR means healthy fabric was not changed.\n"
+                    "For more details, 'CLICK THE WALLPAPER GROUP LABEL FOR CLASSIFICATION GUIDANCE'."
+                )
+            self.explain_text.insert("1.0", expl)
+            self.explain_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def run_optimization_pipeline(self):
         self.run_reconstruction_pipeline()
